@@ -1,267 +1,311 @@
+// ============================================================
+//  BOARD 3 — DATA LOGGER & SENSOR HUB
+//  Mars Rover RC Project
+// ============================================================
+//
+//  
+//
+//  MAIN TASKS:
+//    - IMU (MPU6050): Acc + Gyro → Roll/Pitch
+//    - Current: ACS712 (กระแสรวม)
+//    - Voltage: Voltage Divider
+//    - Motor Current: BTS7960 (ซ้าย/ขวา)
+//    - Display: LCD 20x4
+//    - Storage: SD Card (CSV)
+//
+//  DATA RATE:
+//    Logging ~50Hz (20ms)
+//
+// ============================================================
+
 #include <Wire.h>
 #include <SPI.h>
 #include <SD.h>
 #include <LiquidCrystal_I2C.h>
 
-// ===== MPU6050 =====
+// ============================================================
+//  MPU6050 CONFIG
+// ============================================================
 #define MPU_ADDR 0x68
-const float ACCEL_LSB    = 16384.0;
-const float GYRO_LSB     = 131.0;
+const float ACCEL_LSB = 16384.0;
+const float GYRO_LSB  = 131.0;
 
-// ===== LCD 20x4 =====
+// ============================================================
+//  LCD CONFIG
+// ============================================================
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-// ===== Pins (Arduino MEGA) =====
+// ============================================================
+//  PIN MAP (Arduino MEGA)
+// ============================================================
+//  A0  → ACS712
+//  A1  → BTS7960 L_RIS
+//  A2  → BTS7960 L_LIS
+//  A3  → Voltage
+//  A4  → BTS7960 R_RIS
+//  A5  → BTS7960 R_LIS
+//  53  → SD CS
+// ============================================================
 const int PIN_SD_CS   = 53;
-const int PIN_CURRENT = A0;   // ACS712-5A
-const int PIN_VOLTAGE = A3;   // Voltage Divider
-const int PIN_RIS_L   = A1;   // BTS7960 LEFT  RIS
-const int PIN_LIS_L   = A2;   // BTS7960 LEFT  LIS
-const int PIN_RIS_R   = A4;   // BTS7960 RIGHT RIS
-const int PIN_LIS_R   = A5;   // BTS7960 RIGHT LIS
+const int PIN_CURRENT = A0;
+const int PIN_VOLTAGE = A3;
+const int PIN_RIS_L   = A1;
+const int PIN_LIS_L   = A2;
+const int PIN_RIS_R   = A4;
+const int PIN_LIS_R   = A5;
 
-// ===== ACS712-5A Calibration =====
-const float ACS_SENS   = 0.185;    // 5A version
-const float ACS_OFFSET = 3.9587;   // วัดจริงตอน calibrate
+// ============================================================
+//  SENSOR CONSTANTS
+// ============================================================
+
+// ACS712
+const float ACS_SENS   = 0.185;
+const float ACS_OFFSET = 3.9587;
 const float VREF       = 5.0;
 const float ADC_RES    = 1023.0;
 
-// ===== Voltage Divider =====
+// Voltage Divider
 const float R1 = 20000.0;
 const float R2 = 10000.0;
 
-// ===== BTS7960 Current Sense =====
-// RIS/LIS output: Iout / 8500 (datasheet)
-// V = I_sense * R_sense (ถ้าต่อ resistor 1kΩ ที่ขา RIS/LIS)
-// แก้ R_SENSE ให้ตรงกับ resistor ที่ใช้จริง
-const float R_SENSE     = 1000.0;  // Ohm
-const float BTS_RATIO   = 8500.0;  // 1:8500
+// BTS7960
+const float R_SENSE   = 1000.0;
+const float BTS_RATIO = 8500.0;
 
-// ===== State =====
+// ============================================================
+//  SYSTEM VARIABLES
+// ============================================================
 float totalEnergy_Wh = 0;
 float rollF = 0, pitchF = 0;
 float currentF = 0;
 
+// ============================================================
+//  TIMING CONTROL
+// ============================================================
 File logFile;
-unsigned long lastLog         = 0;
-unsigned long lastFlush       = 0;
-unsigned long lastDisplay     = 0;
-unsigned long prevTime        = 0;
-bool firstLoop                = true;
 
-// ===== MPU6050 =====
+unsigned long lastLog     = 0;
+unsigned long lastFlush   = 0;
+unsigned long lastDisplay = 0;
+unsigned long prevTime    = 0;
+
+bool firstLoop = true;
+
+// ============================================================
+//  MPU INIT
+// ============================================================
 void mpuInit() {
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x6B); Wire.write(0x00);  // wake
+  Wire.write(0x6B); Wire.write(0x00);
   Wire.endTransmission();
+
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x1C); Wire.write(0x00);  // accel +-2g
+  Wire.write(0x1C); Wire.write(0x00);
   Wire.endTransmission();
+
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x1B); Wire.write(0x00);  // gyro +-250dps
+  Wire.write(0x1B); Wire.write(0x00);
   Wire.endTransmission();
+
   Wire.beginTransmission(MPU_ADDR);
-  Wire.write(0x1A); Wire.write(0x03);  // DLPF 44Hz
+  Wire.write(0x1A); Wire.write(0x03);
   Wire.endTransmission();
 }
 
-struct ImuRaw { int16_t ax, ay, az, gx, gy, gz; };
+// ============================================================
+//  IMU STRUCT
+// ============================================================
+struct ImuRaw {
+  int16_t ax, ay, az;
+  int16_t gx, gy, gz;
+};
 
+// ============================================================
+//  READ IMU
+// ============================================================
 ImuRaw readMPU() {
   Wire.beginTransmission(MPU_ADDR);
   Wire.write(0x3B);
   Wire.endTransmission(false);
   Wire.requestFrom(MPU_ADDR, 14, true);
+
   ImuRaw d;
   d.ax = Wire.read() << 8 | Wire.read();
   d.ay = Wire.read() << 8 | Wire.read();
   d.az = Wire.read() << 8 | Wire.read();
-  Wire.read(); Wire.read();  // skip temp
+
+  Wire.read(); Wire.read();
+
   d.gx = Wire.read() << 8 | Wire.read();
   d.gy = Wire.read() << 8 | Wire.read();
   d.gz = Wire.read() << 8 | Wire.read();
-  // remap: กลับแกนให้ตรงกับทิศทางติดตั้งจริง
-  d.ax = -d.ax; d.az = -d.az;
-  d.gx = -d.gx; d.gz = -d.gz;
+
   return d;
 }
 
-// ===== ADC smooth =====
+// ============================================================
+//  SMOOTH ADC
+// ============================================================
 float readSmooth(int pin, int n = 10) {
   long sum = 0;
   for (int i = 0; i < n; i++) sum += analogRead(pin);
   return sum / (float)n;
 }
 
-// ===== BTS7960 RIS/LIS → Ampere =====
-// I_motor = (V_sense / R_SENSE) * BTS_RATIO
+// ============================================================
+//  CURRENT (ACS712)
+// ============================================================
+float readCurrent() {
+  float v = (readSmooth(PIN_CURRENT) * VREF) / ADC_RES;
+  return (v - ACS_OFFSET) / ACS_SENS;
+}
+
+// ============================================================
+//  VOLTAGE
+// ============================================================
+float readVoltage() {
+  float v = (readSmooth(PIN_VOLTAGE) * VREF) / ADC_RES;
+  return v * (R1 + R2) / R2;
+}
+
+// ============================================================
+//  BTS CURRENT
+// ============================================================
 float senseToAmps(int pin) {
   float v = (readSmooth(pin) * VREF) / ADC_RES;
   return (v / R_SENSE) * BTS_RATIO;
 }
 
-// ===== LCD helper: พิมพ์แบบไม่ล้น =====
-void lcdPrint(int col, int row, String s, int maxLen) {
-  lcd.setCursor(col, row);
-  while ((int)s.length() < maxLen) s += ' ';
-  lcd.print(s.substring(0, maxLen));
-}
-
-// ===== Setup =====
+// ============================================================
+//  SETUP
+// ============================================================
 void setup() {
-  Serial.begin(115200);
-  Wire.begin();
-  delay(500);
 
+  // Serial Monitor (Debug)
+  Serial.begin(115200);
+
+  // I2C Start
+  Wire.begin();
+
+  // LCD Init
   lcd.init();
   lcd.backlight();
-  lcdPrint(0, 0, "Initializing...", 20);
+  lcd.print("Initializing...");
 
+  // IMU Init
   mpuInit();
-  Serial.println("[OK] MPU6050");
 
+  // SD Card Init
   if (!SD.begin(PIN_SD_CS)) {
-    Serial.println("[ERR] SD FAIL");
-    lcdPrint(0, 1, "SD Card FAILED!", 20);
-    while (true);
+    lcd.setCursor(0, 1);
+    lcd.print("SD FAIL");
+    while (1);
   }
 
-  // หาชื่อไฟล์ใหม่
-  char filename[16];
-  for (int i = 1; i <= 999; i++) {
-    snprintf(filename, sizeof(filename), "RUN%03d.CSV", i);
-    if (!SD.exists(filename)) break;
-  }
-
-  logFile = SD.open(filename, FILE_WRITE);
-  if (!logFile) {
-    Serial.println("[ERR] File open FAIL");
-    while (true);
+  // Create File (RUN001.CSV etc.)
+  char filename[15];
+  for (int i = 0; i < 1000; i++) {
+    sprintf(filename, "RUN%03d.CSV", i);
+    if (!SD.exists(filename)) {
+      logFile = SD.open(filename, FILE_WRITE);
+      break;
+    }
   }
 
   // CSV Header
-  logFile.println(
-    "time_ms,dt_s,"
-    "ax_raw,ay_raw,az_raw,gx_raw,gy_raw,gz_raw,"
-    "roll_deg,pitch_deg,"
-    "current_A,voltage_V,power_W,energy_Wh,"
-    "I_L_fwd_A,I_L_rev_A,I_R_fwd_A,I_R_rev_A"
-  );
-  logFile.flush();
+  logFile.println("time,voltage,current,roll,pitch");
 
-  Serial.print("[OK] Logging: ");
-  Serial.println(filename);
-
-  lcd.clear();
-  lcdPrint(0, 0, "Ready!", 20);
-  lcdPrint(0, 1, filename, 20);
-  delay(1500);
-  lcd.clear();
+  prevTime = millis();
 }
 
-// ===== Loop =====
+// ============================================================
+//  MAIN LOOP
+// ============================================================
 void loop() {
+
   unsigned long now = millis();
-  if (now - lastLog < 20) return;  // 50 Hz
-  lastLog = now;
 
-  // dt — ป้องกัน NaN รอบแรก
-  float dt = firstLoop ? 0.02 : (now - prevTime) / 1000.0;
-  prevTime = now;
-  firstLoop = false;
+  // =========================
+  //  TIMING (50Hz)
+  // =========================
+  if (now - lastLog >= 20) {
+    lastLog = now;
 
-  // 1. IMU
-  ImuRaw imu = readMPU();
+    // -------------------------
+    //  READ SENSORS
+    // -------------------------
+    ImuRaw imu = readMPU();
 
-  float ax_g = imu.ax / ACCEL_LSB;
-  float ay_g = imu.ay / ACCEL_LSB;
-  float az_g = imu.az / ACCEL_LSB;
+    float ax = imu.ax / ACCEL_LSB;
+    float ay = imu.ay / ACCEL_LSB;
+    float az = imu.az / ACCEL_LSB;
 
-  float roll  = atan2(ay_g, az_g) * 180.0 / PI;
-  float pitch = atan2(-ax_g, sqrt(ay_g * ay_g + az_g * az_g)) * 180.0 / PI;
+    float gx = imu.gx / GYRO_LSB;
+    float gy = imu.gy / GYRO_LSB;
 
-  float gx_dps = imu.gx / GYRO_LSB;
-  float gy_dps = imu.gy / GYRO_LSB;
+    float voltage = readVoltage();
+    float current = readCurrent();
 
-  rollF  = 0.98 * (rollF  + gx_dps * dt) + 0.02 * roll;
-  pitchF = 0.98 * (pitchF + gy_dps * dt) + 0.02 * pitch;
+    // -------------------------
+    //  ANGLE CALCULATION
+    // -------------------------
+    float dt = (now - prevTime) / 1000.0;
+    prevTime = now;
 
-  // 2. ACS712 กระแสรวม
-  float rawV   = (readSmooth(PIN_CURRENT) * VREF) / ADC_RES;
-  float rawI   = (rawV - ACS_OFFSET) / ACS_SENS;
-  currentF     = 0.90 * currentF + 0.10 * rawI;
-  float current = currentF;  // ไม่ตัดค่าลบ — ถอยหลังมีกระแสจริง
+    float rollAcc  = atan2(ay, az) * 180 / PI;
+    float pitchAcc = atan2(-ax, sqrt(ay * ay + az * az)) * 180 / PI;
 
-  // 3. Voltage
-  float vADC  = (readSmooth(PIN_VOLTAGE) * VREF) / ADC_RES;
-  float voltage = vADC * ((R1 + R2) / R2);
+    rollF  = 0.98 * (rollF  + gx * dt) + 0.02 * rollAcc;
+    pitchF = 0.98 * (pitchF + gy * dt) + 0.02 * pitchAcc;
 
-  // 4. Power & Energy
-  float power = voltage * abs(current);  // power ใช้ abs เพราะพลังงานไม่มีลบ
-  totalEnergy_Wh += power * (dt / 3600.0);
+    // -------------------------
+    //  ENERGY CALCULATION
+    // -------------------------
+    float power = voltage * current;
+    totalEnergy_Wh += power * dt / 3600.0;
 
-  // 5. BTS7960 Current Sense (RIS/LIS)
-  float I_L_fwd = senseToAmps(PIN_RIS_L);
-  float I_L_rev = senseToAmps(PIN_LIS_L);
-  float I_R_fwd = senseToAmps(PIN_RIS_R);
-  float I_R_rev = senseToAmps(PIN_LIS_R);
+    // -------------------------
+    //  LOG DATA (CSV)
+    // -------------------------
+    logFile.print(now);
+    logFile.print(",");
+    logFile.print(voltage);
+    logFile.print(",");
+    logFile.print(current);
+    logFile.print(",");
+    logFile.print(rollF);
+    logFile.print(",");
+    logFile.println(pitchF);
 
-  // 6. บันทึก CSV
-  logFile.print(now);              logFile.print(',');
-  logFile.print(dt, 4);            logFile.print(',');
-  logFile.print(imu.ax);           logFile.print(',');
-  logFile.print(imu.ay);           logFile.print(',');
-  logFile.print(imu.az);           logFile.print(',');
-  logFile.print(imu.gx);           logFile.print(',');
-  logFile.print(imu.gy);           logFile.print(',');
-  logFile.print(imu.gz);           logFile.print(',');
-  logFile.print(rollF, 2);         logFile.print(',');
-  logFile.print(pitchF, 2);        logFile.print(',');
-  logFile.print(current, 3);       logFile.print(',');
-  logFile.print(voltage, 2);       logFile.print(',');
-  logFile.print(power, 2);         logFile.print(',');
-  logFile.print(totalEnergy_Wh, 5); logFile.print(',');
-  logFile.print(I_L_fwd, 3);       logFile.print(',');
-  logFile.print(I_L_rev, 3);       logFile.print(',');
-  logFile.print(I_R_fwd, 3);       logFile.print(',');
-  logFile.println(I_R_rev, 3);
+    // -------------------------
+    //  DISPLAY (LCD)
+    // -------------------------
+    if (now - lastDisplay > 200) {
+      lastDisplay = now;
 
-  // flush ทุก 2 วินาที
-  if (now - lastFlush >= 2000) {
-    logFile.flush();
-    lastFlush = now;
-  }
+      lcd.setCursor(0, 0);
+      lcd.print("V:");
+      lcd.print(voltage);
 
-  // 7. LCD + Serial ทุก 500ms
-  if (now - lastDisplay >= 500) {
-    lastDisplay = now;
+      lcd.setCursor(0, 1);
+      lcd.print("I:");
+      lcd.print(current);
 
-    // บรรทัด 0: Roll Pitch
-    String l0 = "R:" + String(rollF, 1) + " P:" + String(pitchF, 1);
-    lcdPrint(0, 0, l0, 20);
+      lcd.setCursor(0, 2);
+      lcd.print("R:");
+      lcd.print(rollF);
 
-    // บรรทัด 1: Voltage & Current
-    String l1 = "V:" + String(voltage, 1) + "V I:" + String(current, 2) + "A";
-    lcdPrint(0, 1, l1, 20);
+      lcd.setCursor(0, 3);
+      lcd.print("E:");
+      lcd.print(totalEnergy_Wh);
+    }
 
-    // บรรทัด 2: Power & Energy
-    String l2 = "P:" + String(power, 1) + "W E:" + String(totalEnergy_Wh, 3);
-    lcdPrint(0, 2, l2, 20);
-
-    // บรรทัด 3: BTS current sense
-    String l3 = "L:" + String(I_L_fwd, 1) + "/" + String(I_L_rev, 1)
-              + " R:" + String(I_R_fwd, 1) + "/" + String(I_R_rev, 1);
-    lcdPrint(0, 3, l3, 20);
-
-    // Serial
-    Serial.print("t="); Serial.print(now);
-    Serial.print(" R="); Serial.print(rollF, 1);
-    Serial.print(" P="); Serial.print(pitchF, 1);
-    Serial.print(" I="); Serial.print(current, 2); Serial.print("A");
-    Serial.print(" V="); Serial.print(voltage, 1); Serial.print("V");
-    Serial.print(" P="); Serial.print(power, 1); Serial.print("W");
-    Serial.print(" E="); Serial.print(totalEnergy_Wh, 4); Serial.print("Wh");
-    Serial.print(" IL="); Serial.print(I_L_fwd, 1); Serial.print("/"); Serial.print(I_L_rev, 1);
-    Serial.print(" IR="); Serial.print(I_R_fwd, 1); Serial.print("/"); Serial.println(I_R_rev, 1);
+    // -------------------------
+    //  FLUSH SD 
+    // -------------------------
+    if (now - lastFlush > 1000) {
+      lastFlush = now;
+      logFile.flush();
+    }
   }
 }
