@@ -1,4 +1,3 @@
-# rover-wheel-compariso
 # Rover Mobility Project (Rocker-Bogie vs Single-Rocker)
 
 🚧 Status: Work in Progress
