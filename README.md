@@ -1,5 +1,6 @@
 # Rover Mobility Comparison Project 🤖
 
+[![Website](https://img.shields.io/badge/🌐_Website-Live-brightgreen)](https://ekklesia123.github.io/rover-wheel-compariso/project-showcase.html)
 ![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
@@ -153,7 +154,15 @@ rover-wheel-compariso/
                                             **Phatharawin** (พัฒธรวิน)
 
                                             - GitHub: [@EKKLESIA123](https://github.com/EKKLESIA123)
-                                            - - เริ่มสร้าง: เมษายน 2026
+                                            - - เริ่มสร้าง: ## 🌐 เว็บไซต์โปรเจกต์
+                                              -
+                                              -  ดูเว็บไซต์แบบ Interactive ได้ที่:
+                                              -
+                                              -   👉 **[https://ekklesia123.github.io/rover-wheel-compariso/project-showcase.html](https://ekklesia123.github.io/rover-wheel-compariso/project-showcase.html)**
+                                              -
+                                              -    ---
+                                              -
+                                              -  2026
                                              
                                               - ---
 
