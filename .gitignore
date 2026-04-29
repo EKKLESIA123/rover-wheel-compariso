@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+
+# Data files (ไม่อัปโหลดข้อมูลดิบขนาดใหญ่)
+*.csv
+*.log
+*.pkl
+*.h5
+*.npy
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+
+# Arduino / PlatformIO
+.pio/
+.vscode-pio/
+*.hex
+*.elf
+
+# Output files
+results/plots/
+data/processed_data/
+
+# Secrets
+*.env
+secrets.py
