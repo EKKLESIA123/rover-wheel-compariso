@@ -1,8 +1,34 @@
 # Rover Mobility Comparison Project 🤖
 
+## 🌐 ดูเว็บไซต์โปรเจกต์ (คลิกได้เลย!)
+
+> **👉 [เปิดเว็บไซต์โปรเจกต์](https://ekklesia123.github.io/rover-wheel-compariso/project-showcase.html)**
+> >
+> >> ดูข้อมูล กราฟ และผลการทดลองแบบ Interactive ได้ที่เว็บไซต์ — ไม่ต้องติดตั้งอะไรทั้งนั้น!
+> >>
+> >> ---
+> >> 
+
 [![Website](https://img.shields.io/badge/🌐_Website-Live-brightgreen)](https://ekklesia123.github.io/rover-wheel-compariso/project-showcase.html)
 ![Status](https://img.shields.io/badge/Status-Work%20in%20Progress-yellow)
 ![License](https://img.shields.io/badge/license-MIT-blue)
+
+## ⚠️ สถานะโปรเจกต์ (กำลังดำเนินการ)
+
+> โปรเจกต์นี้**ยังไม่เสร็จสมบูรณ์** กำลังอยู่ในระหว่างพัฒนา
+>
+> | ไฟล์ / ส่วน | สถานะ | หมายเหตุ |
+> |------------|-------|---------|
+> | README.md | ✅ เสร็จแล้ว | ไฟล์นี้ |
+> | HARDWARE.md | 🔄 กำลังทำ | รายละเอียด hardware |
+> | RESULTS.md | 🔄 กำลังทำ | ผลการทดลอง |
+> | โค้ด Arduino (.ino) | 🔄 กำลังทำ | โค้ดสำหรับ Arduino MEGA |
+> | ข้อมูล CSV | ⏳ รอเพิ่ม | ไฟล์ข้อมูลจากการทดลอง |
+> | โฟลเดอร์ hardware/ | ⏳ รอเพิ่ม | ไดอะแกรมวงจรและไฟล์ 3D |
+> | เว็บไซต์ | 🔄 กำลังปรับปรุง | ออนไลน์แล้ว แต่ยังเพิ่มเนื้อหา |
+>
+> ---
+> 
 
 **โปรเจกต์เปรียบเทียบประสิทธิภาพของหุ่นยนต์สำรวจ 2 แบบ: 4 ล้อ VS 6 ล้อ**
 
